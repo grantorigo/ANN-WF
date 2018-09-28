@@ -5,8 +5,10 @@ import scipy as sp
 import scipy.sparse as sparse
 from scipy.sparse import linalg
 from numpy import linalg as la
-from AFH_Positive_fb import AFH_Positive
-from AFH_Negative_fb import AFH_Negative
+from AFH_Positive_fb import AFH_Positive # as AFH_Positive_fb
+from AFH_Negative_fb import AFH_Negative # as AFH_Negative_fb
+#from AFH_Negative import AFH_Negative as AFH_Negative
+#from AFH_Positive import AFH_Positive as AFH_Positive
 import itertools
 
 class Linear(object):
@@ -128,7 +130,6 @@ class Softmax(F):
     def backward(self, delta):
         return delta * self.y - self.y * (delta * self.y).sum(axis=-1, keepdims=True)
 
-
 class energy(object):
     def __init__(self, Ham):
         self.h = Ham.T + Ham
@@ -240,12 +241,12 @@ class early_stop(object):
         if abs(self.moving_average-loss) < self.threshold: return True
         return False
 
+'''[Network]'''
 def make_net(layer1, layer2):
     net = [Linear(N, layer1,0.), Tanh(), Linear(layer1, layer2,1.), Triangle(), Linear(layer2,1,0.), Tanh(), energy(H)]
     return net
 
 def training(net, opt, training_set, num_epoch):
-    es = early_stop()
     result = net_forward(training_set)
     learning_curve = np.ones((2,num_epoch))
     print('Before Training.\nTest loss = %.4f, energy = %.3f' % (loss(result), result))
@@ -293,8 +294,13 @@ def loss(en):
 num_epoch = int(1e4)
 repetitions = 20
 
-N = 8
+'''[System]'''
+Input = open('Input.cfg', 'r')
+print(Input.read())
+N = 2
 nstates, states, H, E_ED, Psi_ED = AFH_Positive(N).getH()
+
+'''[Test]'''
 M_max = int((nstates- 2*N)/3)
 N_max = int((nstates - 2) / (N + 2))
 N_set = np.arange(2,N_max+1,2)
