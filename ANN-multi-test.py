@@ -337,12 +337,12 @@ repetitions = 20
 N = config["System"]["N"]
 if config["System"]["SignTransform"]:
     if config["System"]["TotalSz"] == "0":
-        from AFH_Negative import AFH_Negative as AFH
-    else: from AFH_Negative_fb import AFH_Negative as AFH
-else:
-    if config["System"]["TotalSz"] == "0":
         from AFH_Positive import AFH_Positive as AFH
     else: from AFH_Positive_fb import AFH_Positive as AFH
+else:
+    if config["System"]["TotalSz"] == "0":
+        from AFH_Negative import AFH_Negative as AFH
+    else: from AFH_Negative_fb import AFH_Negative as AFH
 
 nstates, states, H, E_ED, Psi_ED = AFH(N).getH()
 
