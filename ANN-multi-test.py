@@ -5,11 +5,16 @@ import scipy as sp
 import scipy.sparse as sparse
 from scipy.sparse import linalg
 from numpy import linalg as la
+import itertools
 from AFH_Positive_fb import AFH_Positive # as AFH_Positive_fb
 from AFH_Negative_fb import AFH_Negative # as AFH_Negative_fb
 #from AFH_Negative import AFH_Negative as AFH_Negative
 #from AFH_Positive import AFH_Positive as AFH_Positive
-import itertools
+'''Reading the configuration file'''
+import json
+with open('Config.json') as f:
+    config = json.load(f)
+
 
 class Linear(object):
     def __init__(self, input_shape, output_shape, bias = 0., mean=0., variance=0.01):
@@ -53,6 +58,36 @@ class Convolution(object):
         back_par = np.array([np.sum(np.roll(self.parameters[0].T, i, axis=1)[:, 0:(xshape % self.kernel_size)], axis=1) +
                              back_par1 for i in range(xshape)])
         return delta.dot(back_par.T)
+
+
+class lrf_Linear(object):
+    def __init__(self, system_size, receptive_field, overlap, output_dim, bias = 0., mean=0., variance=0.01):
+        self.bias = bias
+        self.output_dim = output_dim
+        self.overlap = overlap
+        self.receptive_field = receptive_field
+        self.system_size = system_size
+        self.shift = self.receptive_field-self.overlap
+        self.shifts = np.arange(0,self.system_size,self.shift)
+        self.parameters = [mean + variance * np.random.randn(receptive_field, output_dim),
+                           mean + variance * np.random.randn(output_dim)]
+        self.parameters_deltas = [None, None]
+
+    def vroll(self, i):
+        return np.matmul(np.roll(self.x,i*self.shift,axis = 1)[:,0:self.receptive_field],self.parameters[0][:,i])
+
+    def groll(self, i):
+        return np.sum(np.roll(self.x,i*self.shift,axis = 1)[:,0:self.receptive_field]*self.delta[:,i].reshape((len(self.x),1)),axis=0)
+
+    def forward(self, x, *args):
+        self.x = x
+        return np.array(list(imap(self.vroll,range(len(self.shifts))))).T + self.bias * self.parameters[1]
+
+    def backward(self, delta,*args):
+        self.delta = delta
+        self.parameters_deltas[0] = np.array(list(imap(self.groll,range(self.output_dim)))).T
+        self.parameters_deltas[1] = np.sum(delta, 0)
+        return delta.dot(self.parameters[0].T)
 
 
 class F(object):
@@ -102,6 +137,7 @@ class Sigmoid(F):
     def backward(self, delta):
         return delta * ((1. - self.y) * self.y)
 
+
 class Sinc(F):
     def forward(self,x ,*args):
         self.x = x
@@ -111,6 +147,7 @@ class Sinc(F):
     def backward(self, delta):
         return delta*(np.cos(self.x)/self.x - self.y/self.x)
 
+
 class Cos(F):
     def forward(self,x ,*args):
         self.x = x
@@ -118,6 +155,7 @@ class Cos(F):
 
     def backward(self, delta):
         return delta*(-1.)*np.sin(self.x)
+
 
 class Softmax(F):
     def forward(self, x, *args):
@@ -129,6 +167,7 @@ class Softmax(F):
 
     def backward(self, delta):
         return delta * self.y - self.y * (delta * self.y).sum(axis=-1, keepdims=True)
+
 
 class energy(object):
     def __init__(self, Ham):
@@ -241,7 +280,7 @@ class early_stop(object):
         if abs(self.moving_average-loss) < self.threshold: return True
         return False
 
-'''[Network]'''
+'''Network'''
 def make_net(layer1, layer2):
     net = [Linear(N, layer1,0.), Tanh(), Linear(layer1, layer2,1.), Triangle(), Linear(layer2,1,0.), Tanh(), energy(H)]
     return net
@@ -294,11 +333,19 @@ def loss(en):
 num_epoch = int(1e4)
 repetitions = 20
 
-'''[System]'''
-Input = open('Input.cfg', 'r')
-print(Input.read())
-N = 2
-nstates, states, H, E_ED, Psi_ED = AFH_Positive(N).getH()
+'''System configuration'''
+N = config["System"]["N"]
+if config["System"]["SignTransform"]:
+    if config["System"]["TotalSz"] == "0":
+        from AFH_Negative import AFH_Negative as AFH
+    else: from AFH_Negative_fb import AFH_Negative as AFH
+else:
+    if config["System"]["TotalSz"] == "0":
+        from AFH_Positive import AFH_Positive as AFH
+    else: from AFH_Positive_fb import AFH_Positive as AFH
+
+nstates, states, H, E_ED, Psi_ED = AFH(N).getH()
+
 
 '''[Test]'''
 M_max = int((nstates- 2*N)/3)
