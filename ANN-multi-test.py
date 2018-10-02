@@ -290,16 +290,18 @@ def training(net, opt, training_set, num_epoch):
     learning_curve = np.ones((2,num_epoch))
     print('Before Training.\nTest loss = %.4f, energy = %.3f' % (loss(result), result))
     for epoch in range(num_epoch):
+        '''even though we do not use result, one forward pass is required'''
         result = net_forward(states)
         net_backward()
-        # update network parameters
+        '''update network parameters'''
         for node in np.arange(0, len(net[0:-1]), 2):
             update = net[node].parameters_deltas
             net[node].parameters[0] += adaG.update(update[0], node, 0)
             net[node].parameters[1] += adaG.update(update[1], node, 1)
         result = net_forward(states)
         learning_curve[:,epoch] = result, loss(result)
-        if loss(result) < 8e-16: break
+        '''early training abort'''
+        if loss(result) < config["Test"]["precision"]: break
     print('After Training.\nTest loss = %.16f, energy = %.3f' % (loss(result), result))
     return np.min(learning_curve[0][~np.isnan(learning_curve[0])]), np.min(learning_curve[1][~np.isnan(learning_curve[1])])
 
@@ -338,32 +340,41 @@ N = config["System"]["N"]
 if config["System"]["SignTransform"]:
     if config["System"]["TotalSz"] == "0":
         from AFH_Positive import AFH_Positive as AFH
-    else: from AFH_Positive_fb import AFH_Positive as AFH
+        ham_short = 'AFH-p'
+    else:
+        from AFH_Positive_fb import AFH_Positive as AFH
+        ham_short = 'AFH-Sz0-p'
 else:
     if config["System"]["TotalSz"] == "0":
         from AFH_Negative import AFH_Negative as AFH
-    else: from AFH_Negative_fb import AFH_Negative as AFH
+        ham_short = 'AFH-pm'
+    else:
+        from AFH_Negative_fb import AFH_Negative as AFH
+        ham_short = 'AFH-Sz0-pm'
 
 nstates, states, H, E_ED, Psi_ED = AFH(N).getH()
 
 
-'''[Test]'''
+'''Test settings'''
+num_epoch = int(config["Test"]["epochs"])
 M_max = int((nstates- 2*N)/3)
 N_max = int((nstates - 2) / (N + 2))
-N_set = np.arange(2,N_max+1,2)
-M_set = np.arange(2,M_max+1,2)
+L_sizes_set = [np.arange(config["Test"]["L_min"][i],config["Test"]["L_max"][i],config["Test"]["steps"])
+               for i in range(len(config["Test"]["L_max"]))]
+config_set = list(itertools.product(*L_sizes_set))
+print(config_set)
+
 
 indexlist = [(i,j) for i in range(len(N_set)) for j in range(len(M_set))]
 opt_log = np.ones((len(N_set),len(M_set)))
 
-for id in indexlist:
-    if 2*M_set[id[1]]+N*N_set[id[0]]+N_set[id[0]]*M_set[id[1]]<nstates:
-        for i in range(repetitions):
-            print(id)
-            net = make_net(N_set[id[0]], M_set[id[1]])
-            net_conf = get_net_conf(net)
-            adaG = Adagrad(0.1, 1e-7, net_conf)
-            en, lossen = training(net,adaG, states, num_epoch)
-            if lossen < opt_log[id]: opt_log[id] = lossen
-            np.savez('TDT_AFH-p_ls_N' + str(N) + '_PlotFile',N_set,M_set,opt_log)
-            if lossen<8e-16:break
+for id in range(len(config_set)):
+    for i in range(config["Test"]["repetitions"]):
+        print(id)
+        net = make_net(N_set[id[0]], M_set[id[1]])
+        net_conf = get_net_conf(net)
+        adaG = Adagrad(0.1, 1e-7, net_conf)
+        en, lossen = training(net,adaG, states, num_epoch)
+        if lossen < opt_log[id]: opt_log[id] = lossen
+        np.savez('TDT_'+ham_short+'_ls_N' + str(N) + '_PlotFile',N_set,M_set,opt_log)
+        #if lossen<8e-16:break
