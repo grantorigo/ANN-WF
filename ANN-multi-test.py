@@ -169,7 +169,7 @@ class Softmax(F):
         return delta * self.y - self.y * (delta * self.y).sum(axis=-1, keepdims=True)
 
 
-class energy(object):
+class Energy(object):
     def __init__(self, Ham):
         self.h = Ham.T + Ham
 
@@ -281,9 +281,20 @@ class early_stop(object):
         return False
 
 '''Network'''
-def make_net(layer1, layer2):
-    net = [Linear(N, layer1,0.), Tanh(), Linear(layer1, layer2,1.), Triangle(), Linear(layer2,1,0.), Tanh(), energy(H)]
+def make_net(layer_conf):
+    layer_conf = list(layer_conf)
+    layer_conf.append(1)
+    layer_conf.append(N)
+    print(len(layer_conf))
+    architecture = config["Network"]["Architecture"]
+    net = []
+    '''Here we use globals() which is a dictonary containing all callable global functions'''
+    for i in np.arange(0,len(architecture),3):
+        net.append(globals()[architecture[i]](layer_conf[int(i/3)-1],layer_conf[int(i/3)],architecture[i+1]))
+        net.append(globals()[architecture[i+2]]())
+    net.append(globals()[config["Network"]["Loss"]](H))
     return net
+
 
 def training(net, opt, training_set, num_epoch):
     result = net_forward(training_set)
@@ -301,9 +312,10 @@ def training(net, opt, training_set, num_epoch):
         result = net_forward(states)
         learning_curve[:,epoch] = result, loss(result)
         '''early training abort'''
-        if loss(result) < config["Test"]["precision"]: break
+        if loss(result) < config["Test"]["Precision"]: break
     print('After Training.\nTest loss = %.16f, energy = %.3f' % (loss(result), result))
     return np.min(learning_curve[0][~np.isnan(learning_curve[0])]), np.min(learning_curve[1][~np.isnan(learning_curve[1])])
+
 
 def reset_net(net):
     conf = get_net_conf(net)
@@ -313,11 +325,13 @@ def reset_net(net):
         net[2*node].parameters = [mean + variance * np.random.randn(conf[node][0][0],conf[node][0][1]),
                                 mean + variance * np.random.randn(conf[node][1][0])]
         net[node].parameters_deltas = [None,None]
-      
+
+
 def net_forward(x):
     for node in net[0:-1]:
         x = node.forward(x)
     return net[-1].forward(x)
+
 
 def net_backward():
     y_delta = net[-1].backward()
@@ -325,15 +339,15 @@ def net_backward():
         y_delta = node.backward(y_delta) 
     return y_delta
 
+
 def wavefunc(x):
     for node in net[0:-1]:
       x = node.forward(x)
     return x.T[0]/la.norm(x.T[0])
-  
+
+
 def loss(en):
     return (E_ED-en)/E_ED
-num_epoch = int(1e4)
-repetitions = 20
 
 '''System configuration'''
 N = config["System"]["N"]
@@ -356,25 +370,23 @@ nstates, states, H, E_ED, Psi_ED = AFH(N).getH()
 
 
 '''Test settings'''
-num_epoch = int(config["Test"]["epochs"])
+num_epoch = int(config["Test"]["Epochs"])
 M_max = int((nstates- 2*N)/3)
 N_max = int((nstates - 2) / (N + 2))
-L_sizes_set = [np.arange(config["Test"]["L_min"][i],config["Test"]["L_max"][i],config["Test"]["steps"])
+L_sizes_set = [np.arange(config["Test"]["L_min"][i],config["Test"]["L_max"][i],config["Test"]["Steps"])
                for i in range(len(config["Test"]["L_max"]))]
 config_set = list(itertools.product(*L_sizes_set))
-print(config_set)
 
 
-indexlist = [(i,j) for i in range(len(N_set)) for j in range(len(M_set))]
-opt_log = np.ones((len(N_set),len(M_set)))
+'''Preparing output files'''
+opt_log = np.ones(len(config_set))
 
-for id in range(len(config_set)):
-    for i in range(config["Test"]["repetitions"]):
+for conf in range(len(config_set)):
+    for i in range(config["Test"]["Repetitions"]):
         print(id)
-        net = make_net(N_set[id[0]], M_set[id[1]])
+        net = make_net(config_set[conf])
         net_conf = get_net_conf(net)
         adaG = Adagrad(0.1, 1e-7, net_conf)
         en, lossen = training(net,adaG, states, num_epoch)
-        if lossen < opt_log[id]: opt_log[id] = lossen
-        np.savez('TDT_'+ham_short+'_ls_N' + str(N) + '_PlotFile',N_set,M_set,opt_log)
-        #if lossen<8e-16:break
+        if lossen < opt_log[conf]: opt_log[conf] = lossen
+        np.savez(config["Network"]["Name"]+'_'+ham_short+'_N' + str(N) + '_PlotFile',config_set,opt_log)
