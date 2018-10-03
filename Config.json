@@ -10,7 +10,8 @@
 		"Epochs": 1e3,
 		"Steps" : 1,
 		"Precision": 8e-16,
-		"Repetitions": 5
+    "Repetitions": 5,
+    "Pre-Training": true
 	},
 	"Network":{
 		"Name": "TDT",

@@ -451,4 +451,5 @@ for conf in range(len(config_set)):
             weights_log.append(get_weights(net))
             del learning_log[-1]
             learning_log.append(learning_curve)
-        np.savez(config["Network"]["Name"]+'_'+ham_short+'_N' + str(N) + '_PreTrain-'+str(config["Test"]["Pre-Training"])+'_PlotFile',config_set,precision_log,histogram_log,weights_log,learning_log)
+        np.savez(config["Network"]["Name"]+'_'+ham_short+'_N' + str(N) + '_PreTrain-'+str(config["Test"]["Pre-Training"])+'_PlotFile',
+                 config_set,precision_log,histogram_log,weights_log,learning_log)
