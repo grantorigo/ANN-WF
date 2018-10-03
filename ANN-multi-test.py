@@ -409,17 +409,17 @@ N = config["System"]["N"]
 if config["System"]["SignTransform"]:
     if config["System"]["TotalSz"] == "0":
         from AFH_Positive import AFH_Positive as AFH
-        ham_short = 'AFH-p'
+        ham_short = 'AFH-Sz0-p'
     else:
         from AFH_Positive_fb import AFH_Positive as AFH
-        ham_short = 'AFH-Sz0-p'
+        ham_short = 'AFH-p'
 else:
     if config["System"]["TotalSz"] == "0":
         from AFH_Negative import AFH_Negative as AFH
-        ham_short = 'AFH-pm'
+        ham_short = 'AFH-Sz0-pm'
     else:
         from AFH_Negative_fb import AFH_Negative as AFH
-        ham_short = 'AFH-Sz0-pm'
+        ham_short = 'AFH-pm'
 
 nstates, states, H, E_ED, Psi_ED = AFH(N).getH()
 
