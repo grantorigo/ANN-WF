@@ -5,11 +5,16 @@ import scipy as sp
 import scipy.sparse as sparse
 from scipy.sparse import linalg
 from numpy import linalg as la
+import itertools
 from AFH_Positive_fb import AFH_Positive # as AFH_Positive_fb
 from AFH_Negative_fb import AFH_Negative # as AFH_Negative_fb
 #from AFH_Negative import AFH_Negative as AFH_Negative
 #from AFH_Positive import AFH_Positive as AFH_Positive
-import itertools
+'''Reading the configuration file'''
+import json
+with open('Config.json') as f:
+    config = json.load(f)
+
 
 class Linear(object):
     def __init__(self, input_shape, output_shape, bias = 0., mean=0., variance=0.01):
@@ -53,6 +58,36 @@ class Convolution(object):
         back_par = np.array([np.sum(np.roll(self.parameters[0].T, i, axis=1)[:, 0:(xshape % self.kernel_size)], axis=1) +
                              back_par1 for i in range(xshape)])
         return delta.dot(back_par.T)
+
+
+class lrf_Linear(object):
+    def __init__(self, system_size, receptive_field, overlap, output_dim, bias = 0., mean=0., variance=0.01):
+        self.bias = bias
+        self.output_dim = output_dim
+        self.overlap = overlap
+        self.receptive_field = receptive_field
+        self.system_size = system_size
+        self.shift = self.receptive_field-self.overlap
+        self.shifts = np.arange(0,self.system_size,self.shift)
+        self.parameters = [mean + variance * np.random.randn(receptive_field, output_dim),
+                           mean + variance * np.random.randn(output_dim)]
+        self.parameters_deltas = [None, None]
+
+    def vroll(self, i):
+        return np.matmul(np.roll(self.x,i*self.shift,axis = 1)[:,0:self.receptive_field],self.parameters[0][:,i])
+
+    def groll(self, i):
+        return np.sum(np.roll(self.x,i*self.shift,axis = 1)[:,0:self.receptive_field]*self.delta[:,i].reshape((len(self.x),1)),axis=0)
+
+    def forward(self, x, *args):
+        self.x = x
+        return np.array(list(imap(self.vroll,range(len(self.shifts))))).T + self.bias * self.parameters[1]
+
+    def backward(self, delta,*args):
+        self.delta = delta
+        self.parameters_deltas[0] = np.array(list(imap(self.groll,range(self.output_dim)))).T
+        self.parameters_deltas[1] = np.sum(delta, 0)
+        return delta.dot(self.parameters[0].T)
 
 
 class F(object):
@@ -102,6 +137,7 @@ class Sigmoid(F):
     def backward(self, delta):
         return delta * ((1. - self.y) * self.y)
 
+
 class Sinc(F):
     def forward(self,x ,*args):
         self.x = x
@@ -111,6 +147,7 @@ class Sinc(F):
     def backward(self, delta):
         return delta*(np.cos(self.x)/self.x - self.y/self.x)
 
+
 class Cos(F):
     def forward(self,x ,*args):
         self.x = x
@@ -118,6 +155,7 @@ class Cos(F):
 
     def backward(self, delta):
         return delta*(-1.)*np.sin(self.x)
+
 
 class Softmax(F):
     def forward(self, x, *args):
@@ -130,7 +168,8 @@ class Softmax(F):
     def backward(self, delta):
         return delta * self.y - self.y * (delta * self.y).sum(axis=-1, keepdims=True)
 
-class energy(object):
+
+class Energy(object):
     def __init__(self, Ham):
         self.h = Ham.T + Ham
 
@@ -241,28 +280,42 @@ class early_stop(object):
         if abs(self.moving_average-loss) < self.threshold: return True
         return False
 
-'''[Network]'''
-def make_net(layer1, layer2):
-    net = [Linear(N, layer1,0.), Tanh(), Linear(layer1, layer2,1.), Triangle(), Linear(layer2,1,0.), Tanh(), energy(H)]
+'''Network'''
+def make_net(layer_conf):
+    layer_conf = list(layer_conf)
+    layer_conf.append(1)
+    layer_conf.append(N)
+    print(len(layer_conf))
+    architecture = config["Network"]["Architecture"]
+    net = []
+    '''Here we use globals() which is a dictonary containing all callable global functions'''
+    for i in np.arange(0,len(architecture),3):
+        net.append(globals()[architecture[i]](layer_conf[int(i/3)-1],layer_conf[int(i/3)],architecture[i+1]))
+        net.append(globals()[architecture[i+2]]())
+    net.append(globals()[config["Network"]["Loss"]](H))
     return net
+
 
 def training(net, opt, training_set, num_epoch):
     result = net_forward(training_set)
     learning_curve = np.ones((2,num_epoch))
     print('Before Training.\nTest loss = %.4f, energy = %.3f' % (loss(result), result))
     for epoch in range(num_epoch):
+        '''even though we do not use result, one forward pass is required'''
         result = net_forward(states)
         net_backward()
-        # update network parameters
+        '''update network parameters'''
         for node in np.arange(0, len(net[0:-1]), 2):
             update = net[node].parameters_deltas
-            net[node].parameters[0] += adaG.update(update[0], node, 0)
-            net[node].parameters[1] += adaG.update(update[1], node, 1)
+            net[node].parameters[0] += opt.update(update[0], node, 0)
+            net[node].parameters[1] += opt.update(update[1], node, 1)
         result = net_forward(states)
         learning_curve[:,epoch] = result, loss(result)
-        if loss(result) < 8e-16: break
+        '''early training abort'''
+        if loss(result) < config["Test"]["Precision"]: break
     print('After Training.\nTest loss = %.16f, energy = %.3f' % (loss(result), result))
-    return np.min(learning_curve[0][~np.isnan(learning_curve[0])]), np.min(learning_curve[1][~np.isnan(learning_curve[1])])
+    return np.min(learning_curve[0][~np.isnan(learning_curve[0])]), np.min(learning_curve[1][~np.isnan(learning_curve[1])]), learning_curve
+
 
 def reset_net(net):
     conf = get_net_conf(net)
@@ -272,11 +325,13 @@ def reset_net(net):
         net[2*node].parameters = [mean + variance * np.random.randn(conf[node][0][0],conf[node][0][1]),
                                 mean + variance * np.random.randn(conf[node][1][0])]
         net[node].parameters_deltas = [None,None]
-      
+
+
 def net_forward(x):
     for node in net[0:-1]:
         x = node.forward(x)
     return net[-1].forward(x)
+
 
 def net_backward():
     y_delta = net[-1].backward()
@@ -284,39 +339,71 @@ def net_backward():
         y_delta = node.backward(y_delta) 
     return y_delta
 
+
 def wavefunc(x):
     for node in net[0:-1]:
       x = node.forward(x)
     return x.T[0]/la.norm(x.T[0])
-  
+
+
 def loss(en):
     return (E_ED-en)/E_ED
-num_epoch = int(1e4)
-repetitions = 20
 
-'''[System]'''
-Input = open('Input.cfg', 'r')
-print(Input.read())
-N = 2
-nstates, states, H, E_ED, Psi_ED = AFH_Positive(N).getH()
 
-'''[Test]'''
+def get_weights(net):
+    weights = []
+    for i in np.arange(0, len(net[0:-1]), 2):
+        w = np.array(net[i].parameters[0])
+        b = np.array(net[i].parameters[1])
+        weights.append([w, b])
+    return weights
+
+'''System configuration'''
+N = config["System"]["N"]
+if config["System"]["SignTransform"]:
+    if config["System"]["TotalSz"] == "0":
+        from AFH_Positive import AFH_Positive as AFH
+        ham_short = 'AFH-p'
+    else:
+        from AFH_Positive_fb import AFH_Positive as AFH
+        ham_short = 'AFH-Sz0-p'
+else:
+    if config["System"]["TotalSz"] == "0":
+        from AFH_Negative import AFH_Negative as AFH
+        ham_short = 'AFH-pm'
+    else:
+        from AFH_Negative_fb import AFH_Negative as AFH
+        ham_short = 'AFH-Sz0-pm'
+
+nstates, states, H, E_ED, Psi_ED = AFH(N).getH()
+
+
+'''Test settings'''
+num_epoch = int(config["Test"]["Epochs"])
 M_max = int((nstates- 2*N)/3)
 N_max = int((nstates - 2) / (N + 2))
-N_set = np.arange(2,N_max+1,2)
-M_set = np.arange(2,M_max+1,2)
+L_sizes_set = [np.arange(config["Test"]["L_min"][i],config["Test"]["L_max"][i],config["Test"]["Steps"])
+               for i in range(len(config["Test"]["L_max"]))]
+config_set = list(itertools.product(*L_sizes_set))
 
-indexlist = [(i,j) for i in range(len(N_set)) for j in range(len(M_set))]
-opt_log = np.ones((len(N_set),len(M_set)))
 
-for id in indexlist:
-    if 2*M_set[id[1]]+N*N_set[id[0]]+N_set[id[0]]*M_set[id[1]]<nstates:
-        for i in range(repetitions):
-            print(id)
-            net = make_net(N_set[id[0]], M_set[id[1]])
-            net_conf = get_net_conf(net)
-            adaG = Adagrad(0.1, 1e-7, net_conf)
-            en, lossen = training(net,adaG, states, num_epoch)
-            if lossen < opt_log[id]: opt_log[id] = lossen
-            np.savez('TDT_AFH-p_ls_N' + str(N) + '_PlotFile',N_set,M_set,opt_log)
-            if lossen<8e-16:break
+'''Preparing output files'''
+precision_log = np.ones(len(config_set))
+histogram_log = np.ones((len(config_set),config["Test"]["Repetitions"]))
+weights_log = [[]]
+learning_log = [[]]
+
+for conf in range(len(config_set)):
+    for i in range(config["Test"]["Repetitions"]):
+        net = make_net(config_set[conf])
+        net_conf = get_net_conf(net)
+        optmizer = Adagrad(0.1, 1e-7, net_conf)
+        en, lossen, learning_curve = training(net,optmizer, states, num_epoch)
+        histogram_log[conf,i] = lossen
+        if lossen < precision_log[conf]:
+            precision_log[conf] = lossen
+            del weights_log[-1]
+            weights_log.append(get_weights(net))
+            del learning_log[-1]
+            learning_log.append(learning_curve)
+        np.savez(config["Network"]["Name"]+'_'+ham_short+'_N' + str(N) + '_PlotFile',config_set,precision_log,histogram_log,weights_log,learning_log)
