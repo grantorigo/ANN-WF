@@ -307,14 +307,14 @@ def training(net, opt, training_set, num_epoch):
         '''update network parameters'''
         for node in np.arange(0, len(net[0:-1]), 2):
             update = net[node].parameters_deltas
-            net[node].parameters[0] += adaG.update(update[0], node, 0)
-            net[node].parameters[1] += adaG.update(update[1], node, 1)
+            net[node].parameters[0] += opt.update(update[0], node, 0)
+            net[node].parameters[1] += opt.update(update[1], node, 1)
         result = net_forward(states)
         learning_curve[:,epoch] = result, loss(result)
         '''early training abort'''
         if loss(result) < config["Test"]["Precision"]: break
     print('After Training.\nTest loss = %.16f, energy = %.3f' % (loss(result), result))
-    return np.min(learning_curve[0][~np.isnan(learning_curve[0])]), np.min(learning_curve[1][~np.isnan(learning_curve[1])])
+    return np.min(learning_curve[0][~np.isnan(learning_curve[0])]), np.min(learning_curve[1][~np.isnan(learning_curve[1])]), learning_curve
 
 
 def reset_net(net):
@@ -349,6 +349,15 @@ def wavefunc(x):
 def loss(en):
     return (E_ED-en)/E_ED
 
+
+def get_weights(net):
+    weights = []
+    for i in np.arange(0, len(net[0:-1]), 2):
+        w = np.array(net[i].parameters[0])
+        b = np.array(net[i].parameters[1])
+        weights.append([w, b])
+    return weights
+
 '''System configuration'''
 N = config["System"]["N"]
 if config["System"]["SignTransform"]:
@@ -379,14 +388,22 @@ config_set = list(itertools.product(*L_sizes_set))
 
 
 '''Preparing output files'''
-opt_log = np.ones(len(config_set))
+precision_log = np.ones(len(config_set))
+histogram_log = np.ones((len(config_set),config["Test"]["Repetitions"]))
+weights_log = [[]]
+learning_log = [[]]
 
 for conf in range(len(config_set)):
     for i in range(config["Test"]["Repetitions"]):
-        print(id)
         net = make_net(config_set[conf])
         net_conf = get_net_conf(net)
-        adaG = Adagrad(0.1, 1e-7, net_conf)
-        en, lossen = training(net,adaG, states, num_epoch)
-        if lossen < opt_log[conf]: opt_log[conf] = lossen
-        np.savez(config["Network"]["Name"]+'_'+ham_short+'_N' + str(N) + '_PlotFile',config_set,opt_log)
+        optmizer = Adagrad(0.1, 1e-7, net_conf)
+        en, lossen, learning_curve = training(net,optmizer, states, num_epoch)
+        histogram_log[conf,i] = lossen
+        if lossen < precision_log[conf]:
+            precision_log[conf] = lossen
+            del weights_log[-1]
+            weights_log.append(get_weights(net))
+            del learning_log[-1]
+            learning_log.append(learning_curve)
+        np.savez(config["Network"]["Name"]+'_'+ham_short+'_N' + str(N) + '_PlotFile',config_set,precision_log,histogram_log,weights_log,learning_log)
