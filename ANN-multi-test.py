@@ -358,6 +358,59 @@ def get_weights(net):
         weights.append([w, b])
     return weights
 
+
+'''Pre-Training'''
+
+'''Actual Restricted Boltzmann Machine'''
+def p_cosh(b,W,pre_states):
+    return np.prod(2*np.cosh(np.matmul(pre_states, W)+b),axis = 1)#b, ausschalten?
+
+'''Calculating the Log Likelihood'''
+def unsupervised_loglike(T,*args):
+    layer1 = args[0]
+    layer2 = args[1]
+    pre_states = args[2]
+    b, W = T[0:layer2], np.reshape(T[layer2::], (layer1, layer2))
+    psi = p_cosh(np.zeros(len(b)),W,pre_states)
+    u = np.log(psi/np.sum(psi))
+    return (-1.)*np.sum(u)
+
+
+'''Optimizing the Log Likelihood'''
+def variation(f,layer1,layer2,pre_states):
+    b_ = np.random.rand(layer2)
+    W_ = np.random.rand(layer1, layer2)
+    args = (layer1,layer2,pre_states)
+    res = sp.optimize.minimize(f, np.concatenate((b_, np.reshape(W_, layer1 * layer2))), args,
+                               method='BFGS', tol=1.E-15, options={'gtol': 1E-15, 'disp': False, 'maxiter': 500000})
+    return f(res.x,*args), res.x
+
+'''Layer-wise pre-training'''
+def pre_train(net,layer_,nlayer):
+    log = np.zeros(nlayer)
+    pre_states = states
+    layer1 = N
+    layer2 = layer_
+    lossen, pre_tr_W = variation(unsupervised_loglike,layer1,layer2,pre_states)
+    log[0] = lossen
+    net[0].parameters = [np.reshape(pre_tr_W[layer2::], (layer1, layer2)), pre_tr_W[0:layer2]]
+    '''Evaluate the linear function'''
+    pre_states = net[0].forward(pre_states)
+    '''Evaluate the nonlinear function'''
+    pre_states = net[1].forward(pre_states)
+    for i in range(1,nlayer):
+        layer1 = layer_
+        layer2 = layer_
+        lossen, pre_tr_W = variation(unsupervised_loglike,layer1,layer2,pre_states)
+        log[i] = lossen
+        net[2*i].parameters = [np.reshape(pre_tr_W[layer2::], (layer1, layer2)), pre_tr_W[0:layer2]]
+        '''Evaluate the linear function'''
+        pre_states = net[2*i].forward(pre_states)
+        '''Evaluate the nonlinear function'''
+        pre_states = net[2*i+1].forward(pre_states)
+    return log
+
+
 '''System configuration'''
 N = config["System"]["N"]
 if config["System"]["SignTransform"]:
