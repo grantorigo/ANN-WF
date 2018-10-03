@@ -285,7 +285,6 @@ def make_net(layer_conf):
     layer_conf = list(layer_conf)
     layer_conf.append(1)
     layer_conf.append(N)
-    print(len(layer_conf))
     architecture = config["Network"]["Architecture"]
     net = []
     '''Here we use globals() which is a dictonary containing all callable global functions'''
@@ -294,6 +293,52 @@ def make_net(layer_conf):
         net.append(globals()[architecture[i+2]]())
     net.append(globals()[config["Network"]["Loss"]](H))
     return net
+
+
+'''Pre-Training'''
+
+'''Actual Restricted Boltzmann Machine'''
+def p_cosh(b,W,pre_states):
+    return np.prod(2*np.cosh(np.matmul(pre_states, W)+b),axis = 1)#b, ausschalten?
+
+'''Calculating the Log Likelihood'''
+def unsupervised_loglike(T,*args):
+    layer1 = args[0]
+    layer2 = args[1]
+    pre_states = args[2]
+    b, W = T[0:layer2], np.reshape(T[layer2::], (layer1, layer2))
+    psi = p_cosh(np.zeros(len(b)),W,pre_states)
+    u = np.log(psi/np.sum(psi))
+    return (-1.)*np.sum(u)
+
+'''Optimizing the Log Likelihood'''
+def variation(f,layer1,layer2,pre_states,i):
+    b_ = config["Network"]["Architecture"][3*i+1]*np.random.rand(layer2)
+    W_ = np.random.rand(layer1, layer2)
+    args = (layer1,layer2,pre_states)
+    res = sp.optimize.minimize(f, np.concatenate((b_, np.reshape(W_, layer1 * layer2))), args,
+                               method='BFGS', tol=1.E-15, options={'gtol': 1E-15, 'disp': False, 'maxiter': 500000})
+    return f(res.x,*args), res.x
+
+'''Layer-wise pre-training'''
+def pre_train(net,layer_conf):
+    layer_conf = list(layer_conf)
+    layer_conf.append(1)
+    layer_conf.append(N)
+    nlayer = len(layer_conf)-1
+    log = np.zeros(nlayer)
+    pre_states = states
+    for i in range(0,nlayer):
+        layer1 = layer_conf[i-1]
+        layer2 = layer_conf[i]
+        lossen, pre_tr_W = variation(unsupervised_loglike,layer1,layer2,pre_states,i)
+        log[i] = lossen
+        net[2*i].parameters = [np.reshape(pre_tr_W[layer2::], (layer1, layer2)), pre_tr_W[0:layer2]]
+        '''Evaluate the linear function'''
+        pre_states = net[2*i].forward(pre_states)
+        '''Evaluate the nonlinear function'''
+        pre_states = net[2*i+1].forward(pre_states)
+    return log
 
 
 def training(net, opt, training_set, num_epoch):
@@ -358,30 +403,29 @@ def get_weights(net):
         weights.append([w, b])
     return weights
 
+
 '''System configuration'''
 N = config["System"]["N"]
 if config["System"]["SignTransform"]:
     if config["System"]["TotalSz"] == "0":
         from AFH_Positive import AFH_Positive as AFH
-        ham_short = 'AFH-p'
+        ham_short = 'AFH-Sz0-p'
     else:
         from AFH_Positive_fb import AFH_Positive as AFH
-        ham_short = 'AFH-Sz0-p'
+        ham_short = 'AFH-p'
 else:
     if config["System"]["TotalSz"] == "0":
         from AFH_Negative import AFH_Negative as AFH
-        ham_short = 'AFH-pm'
+        ham_short = 'AFH-Sz0-pm'
     else:
         from AFH_Negative_fb import AFH_Negative as AFH
-        ham_short = 'AFH-Sz0-pm'
+        ham_short = 'AFH-pm'
 
 nstates, states, H, E_ED, Psi_ED = AFH(N).getH()
 
 
 '''Test settings'''
 num_epoch = int(config["Test"]["Epochs"])
-M_max = int((nstates- 2*N)/3)
-N_max = int((nstates - 2) / (N + 2))
 L_sizes_set = [np.arange(config["Test"]["L_min"][i],config["Test"]["L_max"][i],config["Test"]["Steps"])
                for i in range(len(config["Test"]["L_max"]))]
 config_set = list(itertools.product(*L_sizes_set))
@@ -398,6 +442,7 @@ for conf in range(len(config_set)):
         net = make_net(config_set[conf])
         net_conf = get_net_conf(net)
         optmizer = Adagrad(0.1, 1e-7, net_conf)
+        if  config["Test"]["Pre-Training"]: ptr_out = pre_train(net, config_set[conf])
         en, lossen, learning_curve = training(net,optmizer, states, num_epoch)
         histogram_log[conf,i] = lossen
         if lossen < precision_log[conf]:
@@ -406,4 +451,4 @@ for conf in range(len(config_set)):
             weights_log.append(get_weights(net))
             del learning_log[-1]
             learning_log.append(learning_curve)
-        np.savez(config["Network"]["Name"]+'_'+ham_short+'_N' + str(N) + '_PlotFile',config_set,precision_log,histogram_log,weights_log,learning_log)
+        np.savez(config["Network"]["Name"]+'_'+ham_short+'_N' + str(N) + '_PreTrain-'+str(config["Test"]["Pre-Training"])+'_PlotFile',config_set,precision_log,histogram_log,weights_log,learning_log)
