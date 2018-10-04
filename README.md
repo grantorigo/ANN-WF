@@ -33,12 +33,22 @@ We begin with the settings of the system. First of all we set the system size N 
 The "Test" settings specify which layer sizes are tested. For a L layer network "L_max" and "L_min" have to be lists of legnth L-1, the Lth layer is preset to 1. The "Steps" variable defines how many steps are taken between L_max and L_min.To have just one configuration "L_min": [l_1,...l_(L-1)] and "L_max": [l_1+1,...l_(L-1)+1]. The "Epochs" setting specifies how many GD steps are iterated, and one can set a precision ("Precision") to, once reached, abort the optimization process. Every configuration can be tested "Repetitions"-many times. Eventually one can make use of unsupervised pre-training to initialize the network parameters by setting "Pre-Training": true. For a gaussain random distributed initialization set "Pre-Training": false.
 
 "Network" is the part where we design the network. First of all one can give it a name "Name", which is then part of the output file name. "Architecture" is a list that has the following structure ["linear_operation",bias,"activation_function",...] which is repeated for every network layer. The linear_operation can be chosen to be:
-* Item 1 Hallo
-
-
-
+* "Linear" for the standard affine operation,
+* "Convolution" for a weighted cross sum,
+* "lrf_Linear" for the standard affine operation, but with a sparse receptive field.
+The bias variable is an integer and can be set to 1 in order to use bias and 0 in order to not.
+The activation_function can be chosen to be:
+* "ReLu" for the rectified linear unit,
+* "Tanh",
+* "Triangle" for the triangle signal function,
+* "Sigmoid",
+* "Sinc",
+* "Cos",
+* "Softmax",
+see https://en.wikipedia.org/wiki/Activation_function for details on the activation functions.
 
 ## Output
 
-Name structure
+
+
 ## Plot
