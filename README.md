@@ -1,5 +1,6 @@
 # ANN-WF
 
+```Java
 {
 	"System":{
 		"N": 8,
@@ -21,3 +22,4 @@
 		"Loss": "Energy"
 	}
 }
+```
