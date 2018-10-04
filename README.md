@@ -46,10 +46,20 @@ The activation_function can be chosen to be:
 * "Cos",
 * "Softmax",
 
-see https://en.wikipedia.org/wiki/Activation_function for details on the activation functions.
+see https://en.wikipedia.org/wiki/Activation_function for details on the activation functions. Finally one has to choose a cost-function, for which we have only one option the variational energy "Loss": "Energy". 
 
 ## Output
 
+The output file contains in order the following lists:
+* the configuration set as calculated from "Test",
+* the lowest relative errors (calculated as (E_ann - E_ed)/E_ed, where E_ed the energy obtained form exact diagonalization and E_ann the result from the network) for every configuration,
+* all the relative errors for every configuration as obtained from every repetitions,
+* the weight matrices corresponding to the lowest relative erros for every configuration,
+* the learning curve corresponding to the lowest relative erros for every configuration.
+The name of the ouput file is composed form the system settings
+* AFH-pm no sign transformation
+* AFH-p sign transformation
+* AFH-Sz0-... restricted Fock space
+* PreTrain-True/False denotes whether pre-training was used or not.
 
-
-## Plot
+## Plot.josn
