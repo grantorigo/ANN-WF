@@ -27,19 +27,17 @@ learning_log = npzfile['arr_4']
 
 tickfont = 13
 labelfont = 14
-bins = 10.**np.arange(-16.,2.,1.)
+color = '#1f77b4'
 
 with PdfPages(file["File name"][0:-12]+'LearningCurve.pdf') as pdf:
-    for i in range(len(histogram_log)):
+    for i in range(len(config_set)):
         fig, ax = plt.subplots()
         fig.suptitle('Layer-configuration: '+str(config_set[i]), fontsize=labelfont)
-        pyplot.hist(histogram_log[i], bins,color = '#1f77b4',rwidth=0.9 , log = False)#, label='bias = False')
+        ax.plot(np.absolute(learning_log[i,1]), label='Learning Curve', color=color)
         pyplot.xscale('log')
-        #pyplot.legend(loc='upper left', fontsize = tickfont)
         pyplot.yticks(fontsize = tickfont)
         pyplot.xticks(fontsize = tickfont)
-        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax.set_ylabel("Counts", fontsize = labelfont)
-        ax.set_xlabel("Relative error ($\\Delta E$)", fontsize = labelfont)
+        ax.set_xlabel("Epoch", fontsize = labelfont)
+        ax.set_ylabel("Relative error ($\\Delta E$)", fontsize = labelfont)
         pdf.savefig()
         plt.close()

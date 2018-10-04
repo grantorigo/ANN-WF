@@ -430,10 +430,12 @@ config_set = list(itertools.product(*L_sizes_set))
 '''Preparing output files'''
 precision_log = np.ones(len(config_set))
 histogram_log = np.ones((len(config_set),config["Test"]["Repetitions"]))
-weights_log = [[]]
-learning_log = [[]]
+weights_log = []
+learning_log = []
 
 for conf in range(len(config_set)):
+    weights_log.append([])
+    learning_log.append([])
     for i in range(config["Test"]["Repetitions"]):
         net = make_net(config_set[conf])
         net_conf = get_net_conf(net)
