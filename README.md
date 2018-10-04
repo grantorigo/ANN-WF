@@ -45,6 +45,7 @@ The activation_function can be chosen to be:
 * "Sinc",
 * "Cos",
 * "Softmax",
+
 see https://en.wikipedia.org/wiki/Activation_function for details on the activation functions.
 
 ## Output
