@@ -55,7 +55,7 @@ The output file contains in order the following lists:
 * the lowest relative errors (calculated as (E_ann - E_ed)/E_ed, where E_ed the energy obtained form exact diagonalization and E_ann the result from the network) for every configuration,
 * all the relative errors for every configuration as obtained from every repetitions,
 * the weight matrices corresponding to the lowest relative erros for every configuration,
-* the learning curve corresponding to the lowest relative erros for every configuration.
+* the learning curve contains the relative error and variational energy of every optimization step for every configurations lowest final relative error.
 
 The name of the ouput file is composed form the system settings
 * AFH-pm no sign transformation
@@ -64,3 +64,11 @@ The name of the ouput file is composed form the system settings
 * PreTrain-True/False denotes whether pre-training was used or not.
 
 ## Plot.josn
+
+The Plot.josn file contains the file name one wants to plot:
+```Java
+{
+	"File name": "TDT_AFH-Sz0-p_N8_PreTrain-True_PlotFile.npz"
+}
+```
+There are three plot options so far. One can plot all the relative errors for every configuration as histogram with Histogram_Plot.py. In a similar fashion one can plot the learning curves for every configuration with LearningCurve_Plot.py. Only for three layer networks we have the LayerConfiguration_Plot.py option, which plots the lowest obtained relative error for every configuration in a color scheme on a 2D grid.
