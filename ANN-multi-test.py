@@ -6,10 +6,6 @@ import scipy.sparse as sparse
 from scipy.sparse import linalg
 from numpy import linalg as la
 import itertools
-from AFH_Positive_fb import AFH_Positive # as AFH_Positive_fb
-from AFH_Negative_fb import AFH_Negative # as AFH_Negative_fb
-#from AFH_Negative import AFH_Negative as AFH_Negative
-#from AFH_Positive import AFH_Positive as AFH_Positive
 '''Reading the configuration file'''
 import json
 with open('Config.json') as f:
