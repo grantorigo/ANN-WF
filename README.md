@@ -56,6 +56,7 @@ The output file contains in order the following lists:
 * all the relative errors for every configuration as obtained from every repetitions,
 * the weight matrices corresponding to the lowest relative erros for every configuration,
 * the learning curve corresponding to the lowest relative erros for every configuration.
+
 The name of the ouput file is composed form the system settings
 * AFH-pm no sign transformation
 * AFH-p sign transformation
