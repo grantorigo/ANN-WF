@@ -18,8 +18,8 @@ ANN-multi-test.py needs an input file (Config.json) where one can specifiy the F
 		"Epochs": 1e3,
 		"Steps" : 1,
 		"Precision": 8e-16,
-    "Repetitions": 5,
-    "Pre-Training": true
+    		"Repetitions": 5,
+    		"Pre-Training": true
 	},
 	"Network":{
 		"Name": "TDT",
@@ -28,9 +28,17 @@ ANN-multi-test.py needs an input file (Config.json) where one can specifiy the F
 	}
 }
 ```
-We begin with the settings of the system. First of all we set the system size N to any integer larger 0, but for the sake of your system memory you should not exceed "N": 16. Next one can restric the Fock space to the TotalSz = 0 subspace by setting "TotalSz": "0", anything else yields the whole Fock space. Finally the Heisenberg Hamiltonian 
+We begin with the settings of the system. First of all we set the system size N to any integer larger 0, but for the sake of your system memory you should not exceed "N": 16. Next one can restrict the Fock space to the TotalSz = 0 subspace by setting "TotalSz": "0", anything else yields the whole Fock space. Finally the a Marshalls Sign Transformation can be applied to the Hamiltonian by setting "SignTransform": true, if not desired just set "SignTransform": false.
+
+The "Test" settings specify which layer sizes are tested. For a L layer network "L_max" and "L_min" have to be lists of legnth L-1, the Lth layer is preset to 1. The "Steps" variable defines how many steps are taken between L_max and L_min.To have just one configuration "L_min": [l_1,...l_(L-1)] and "L_max": [l_1+1,...l_(L-1)+1]. The "Epochs" setting specifies how many GD steps are iterated, and one can set a precision ("Precision") to, once reached, abort the optimization process. Every configuration can be tested "Repetitions"-many times. Eventually one can make use of unsupervised pre-training to initialize the network parameters by setting "Pre-Training": true. For a gaussain random distributed initialization set "Pre-Training": false.
+
+"Network" is the part where we design the network. First of all one can give it a name "Name", which is then part of the output file name. "Architecture" is a list that has the following structure ["linear_operation",bias,"activation_function",...] which is repeated for every network layer. The linear_operation can be chosen to be:
+* Item 1 Hallo
+
+
 
 
 ## Output
 
+Name structure
 ## Plot
